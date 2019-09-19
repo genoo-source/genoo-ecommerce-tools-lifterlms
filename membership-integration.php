@@ -35,6 +35,40 @@ add_shortcode('facebook_comments', function($atts){
     return $r;
 });
 
+function enroll_student_on_connected_site( $email, $username, $membership_id ){
+  $url = get_option('satellite_site_settings')["satellite_site_url"];
+  $token = get_option('satellite_site_settings["satellite_site_token"]');
+
+  $password = substr(str_shuffle(str_repeat($x='0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ', ceil(14/strlen($x)) )),1,14);
+
+  // Prepare new cURL resource
+  $data = array(
+    'username' => $username,
+    'password' => $password,
+    'email' => $email,
+    'memberships' => "$membership_id"
+  );
+  $payload = json_encode($data);
+  // echo "$url/wp-json/wp/v2/satellite/new_user/ -- $payload";
+
+  $ch = curl_init("$url/wp-json/wp/v2/satellite/new_user/");
+  curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+  curl_setopt($ch, CURLINFO_HEADER_OUT, true);
+  curl_setopt($ch, CURLOPT_POST, true);
+  curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
+  $headers = array(
+    "Authorization:Basic $token"
+  );
+  curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+  // Submit the POST request
+  $result = json_decode(curl_exec($ch));
+
+  // Close cURL session handle
+  curl_close($ch);
+  var_dump( $result );
+  return $result;
+}
+
 add_action( 'woocommerce_thankyou', 'wpme_llms_catch_checkout_to_add_memberships');
 add_action( 'woocommerce_payment_complete', 'wpme_llms_catch_checkout_to_add_memberships');
 function wpme_llms_catch_checkout_to_add_memberships( $order_id ){
@@ -45,26 +79,16 @@ function wpme_llms_catch_checkout_to_add_memberships( $order_id ){
 
   foreach ( $items as $item ) {
 		$id = $item->get_product_id();
-		$memberships_bought = get_post_meta( $id, 'connected_memberships', true );
-		if ( isset($memberships_bought) ) {
+		$memberships_bought = json_decode(get_post_meta( $id, 'connected_memberships', true ));
 
-			$memberships_bought = explode(',', $memberships_bought);
-			foreach ( $memberships_bought as $membership_id ) {
-        llms_enroll_student( $student, $membership_id );
-      }
-		}
+    if ( $memberships_bought->domain == get_site_url() ) {
+  		llms_enroll_student( $student, $membership_id );
+    } else {
+      $userdata = get_userdata( $user_id );
+      enroll_student_on_connected_site( $userdata->user_email, $userdata->user_login, $membership_id );
+    }
+
   }
-}
-
-add_shortcode( 'test-membership-shortcode', 'test_membership_shortcode' );
-function test_membership_shortcode(){
-  $user_id = get_current_user_id();
-  $student = new LLMS_Student( $user_id );
-  var_dump( $student );
-
-  llms_enroll_student( $student, 1052 );
-
-  return "Okay, check that user: $user_id is enrolled in membership: 1052";
 }
 
 function multi_membership_chooser() {
@@ -212,29 +236,66 @@ function connected_memberships_metabox() {
     );
 }
 
+function getConnectedSiteMemberships( $url ) {
+  if ( !isset($url) || !$url ) return;
+
+  // Prepare new cURL resource
+  $ch = curl_init("$url/wp-json/wp/v2/llms_membership");
+  curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+  curl_setopt($ch, CURLINFO_HEADER_OUT, true);
+  curl_setopt($ch, CURLOPT_GET, true);
+  $token = get_option('satellite_site_settings["satellite_site_token"]');
+  $headers = array("Authorization:Basic $token");
+  curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+
+  // Submit the POST request
+  $result = json_decode(curl_exec($ch));
+
+  // Close cURL session handle
+  curl_close($ch);
+
+  return $result;
+}
+
 // llms_woo dropdown display
 function connected_memberships_display( $post ) {
+  // get current value
+  $dropdown_value = get_post_meta( get_the_ID(), 'connected_memberships', true );
 
   // Use nonce for verification
   wp_nonce_field( basename( __FILE__ ), 'connected_memberships_nonce' );
+  $connected_url = get_option('satellite_site_settings')["satellite_site_url"];
+  $connected_memberships = getConnectedSiteMemberships($connected_url);
+  $connected_memberships_options = "";
+  if ( count($connected_memberships) != 0 ) {
+    $connected_memberships_options .= "<optgroup label=\"$connected_url\">";
+    for ($i=0; $i < count($connected_memberships); $i++) {
+      $id = $connected_memberships[$i]->id;
+      $title = $connected_memberships[$i]->title->rendered;
+      $is_selected = $dropdown_value == $id  ? 'selected' : '';
+      $connected_memberships_options .= "<option value=\"{domain: '$connected_url',ID: $id}\" $is_selected>$title</option>";
+    }
+    $connected_memberships_options .= "</optgroup>";
+  }
 
-  // get current value
-  $dropdown_value = get_post_meta( get_the_ID(), 'connected_memberships', true );
   ?>
     <select name="connected_memberships" id="connected_memberships">
 			<option value="">--- None ---</option>
-			<?php
-				$args = array(
-					'numberposts' => 999,
-					'post_type'   => 'llms_membership'
-				);
-				$memberships = get_posts( $args );
-				foreach ( $memberships as $post ) :
-					$is_selected = $dropdown_value == $post->ID;
-					?><option value="<?= $post->ID ?>" <?=$is_selected ? 'selected' : ''?>><?=$post->post_title?></option><?php
-		    endforeach;
-		    wp_reset_postdata();
-			?>
+      <?= $connected_memberships_options ?>
+      <optgroup label="<?= get_site_url(); ?>">
+  			<?php
+  				$args = array(
+  					'numberposts' => 999,
+  					'post_type'   => 'llms_membership'
+  				);
+  				$memberships = get_posts( $args );
+  				foreach ( $memberships as $post ) :
+  					$is_selected = $dropdown_value == $post->ID;
+  					?><option value="{domain: '<?= get_site_url() ?>', ID:<?= $post->ID ?>}" <?=$is_selected ? 'selected' : ''?>><?=$post->post_title?></option><?php
+  		    endforeach;
+  		    wp_reset_postdata();
+  			?>
+      </optgroup>
     </select>
   <?php
 }
@@ -273,6 +334,7 @@ include("change-global-user-enrollment-date.php");
 include("redirect-unlogged-in-users.php");
 include("lesson-links-widget.php");
 include("lesson-forum-metabox.php");
+include("satellite-settings.php");
 include("course-reordering.php");
 
 require 'plugin-update-checker-4.4/plugin-update-checker.php';
@@ -284,7 +346,7 @@ $myUpdateChecker = Puc_v4_Factory::buildUpdateChecker(
 
 add_action( 'init', 'woocommerce_clear_cart_url' );
 function woocommerce_clear_cart_url() {
-
+  if (!is_plugin_active("lifterlms/lifterlms.php")){ return; }
 
   global $woocommerce;
   try {
