@@ -46,6 +46,7 @@ function enroll_student_on_connected_site( $email, $username, $membership_id ){
     'username' => $username,
     'password' => $password,
     'email' => $email,
+    'website' => get_site_url(),
     'memberships' => "$membership_id"
   );
   $payload = json_encode($data);
@@ -75,17 +76,17 @@ function wpme_llms_catch_checkout_to_add_memberships( $order_id ){
   $order = new WC_Order( $order_id );
   $items = $order->get_items();
   $user_id = get_current_user_id();
-  $student = new LLMS_Student( $user_id );
 
   foreach ( $items as $item ) {
 		$id = $item->get_product_id();
 		$memberships_bought = json_decode(get_post_meta( $id, 'connected_memberships', true ));
 
     if ( $memberships_bought->domain == get_site_url() ) {
-  		llms_enroll_student( $student, $membership_id );
+		$student = new LLMS_Student( $user_id );
+  		llms_enroll_student( $student, $memberships_bought->ID, get_site_url() );
     } else {
       $userdata = get_userdata( $user_id );
-      enroll_student_on_connected_site( $userdata->user_email, $userdata->user_login, $membership_id );
+      enroll_student_on_connected_site( $userdata->user_email, $userdata->user_login, $memberships_bought->ID );
     }
 
   }
@@ -237,7 +238,10 @@ function connected_memberships_metabox() {
 }
 
 function getConnectedSiteMemberships( $url ) {
-  if ( !isset($url) || !$url ) return;
+  if ( !isset($url) || !$url ) {
+	echo "No Connected Memberships";
+	return;
+  };
 
   // Prepare new cURL resource
   $ch = curl_init("$url/wp-json/wp/v2/llms_membership");
@@ -261,6 +265,8 @@ function getConnectedSiteMemberships( $url ) {
 function connected_memberships_display( $post ) {
   // get current value
   $dropdown_value = get_post_meta( get_the_ID(), 'connected_memberships', true );
+  $dropdown_value = str_replace("'", "\"", $dropdown_value);
+  $dropdown_value = json_decode( $dropdown_value );
 
   // Use nonce for verification
   wp_nonce_field( basename( __FILE__ ), 'connected_memberships_nonce' );
@@ -272,12 +278,11 @@ function connected_memberships_display( $post ) {
     for ($i=0; $i < count($connected_memberships); $i++) {
       $id = $connected_memberships[$i]->id;
       $title = $connected_memberships[$i]->title->rendered;
-      $is_selected = $dropdown_value == $id  ? 'selected' : '';
-      $connected_memberships_options .= "<option value=\"{domain: '$connected_url',ID: $id}\" $is_selected>$title</option>";
+      $is_selected = $dropdown_value->ID == $id  ? 'selected' : '';
+      $connected_memberships_options .= "<option value=\"{'domain': '$connected_url','ID': '$id'}\" $is_selected>$title</option>";
     }
     $connected_memberships_options .= "</optgroup>";
   }
-
   ?>
     <select name="connected_memberships" id="connected_memberships">
 			<option value="">--- None ---</option>
@@ -290,8 +295,8 @@ function connected_memberships_display( $post ) {
   				);
   				$memberships = get_posts( $args );
   				foreach ( $memberships as $post ) :
-  					$is_selected = $dropdown_value == $post->ID;
-  					?><option value="{domain: '<?= get_site_url() ?>', ID:<?= $post->ID ?>}" <?=$is_selected ? 'selected' : ''?>><?=$post->post_title?></option><?php
+  					$is_selected = json_decode($dropdown_value)->ID == $post->ID;
+  					?><option value="{'domain': '<?= get_site_url() ?>', 'ID':<?= $post->ID ?>}" <?=$is_selected ? 'selected' : ''?>><?=$post->post_title?></option><?php
   		    endforeach;
   		    wp_reset_postdata();
   			?>
@@ -329,7 +334,7 @@ function connected_memberships_save( $post_id ) {
   update_post_meta( $post_id, 'connected_memberships', $new_value );
 }
 
-include("one-page-checkout-integration.php");
+//include("one-page-checkout-integration.php");
 include("change-global-user-enrollment-date.php");
 include("redirect-unlogged-in-users.php");
 include("lesson-links-widget.php");
@@ -346,7 +351,7 @@ $myUpdateChecker = Puc_v4_Factory::buildUpdateChecker(
 
 add_action( 'init', 'woocommerce_clear_cart_url' );
 function woocommerce_clear_cart_url() {
-  if (!is_plugin_active("lifterlms/lifterlms.php")){ return; }
+
 
   global $woocommerce;
   try {

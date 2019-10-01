@@ -125,6 +125,7 @@ function create_new_user_from_api(WP_REST_Request $request) {
   $username    = $params["username"];
   $password    = $params["password"];
   $email       = $params["email"];
+  $website     = $params["website"];
   $memberships = $params["memberships"]; // comma separated
 
   // Create the new user
@@ -134,7 +135,7 @@ function create_new_user_from_api(WP_REST_Request $request) {
   $student = new LLMS_Student( $user_id );
   $memberships_bought = explode(',', $memberships);
   foreach ( $memberships_bought as $membership_id ) {
-    llms_enroll_student( $student, $membership_id );
+    llms_enroll_student( $student, $membership_id, $website );
   }
 
   return "$user_id $memberships_bought Success";
