@@ -170,7 +170,7 @@ function llms_courses_in_membership( $atts ) {
       $access_plan = get_post_meta(get_the_ID());
       $connected_course = $access_plan["_llms_product_id"][0];
 
-      if ( strpos(json_encode($access_plan["_llms_availability_restrictions"]), strval($membership_id)) !== false ) {
+      if ( strpos(json_encode($access_plan["_llms_availability_restrictions"]), strval($membership_id)) !== false && get_post_status($connected_course) != false ) {
         $course_ids[] = $connected_course;
       }
   	}
