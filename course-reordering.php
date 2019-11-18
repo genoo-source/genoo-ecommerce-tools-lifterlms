@@ -2,8 +2,11 @@
 
 function course_reorder_meta_box_markup($object) {
   wp_nonce_field(basename(__FILE__), "meta-box-nonce");
-
   $course_order = explode( ",", get_post_meta($object->ID, "courses-in-order", true) );
+	
+  function is_not_empty_string( $str ) { return $str !== ""; }
+  $course_order = array_filter( $course_order, "is_not_empty_string" );
+	
   $day = 60 * 60 * 24;
   for ($i=0; $i < count( $course_order ); $i++) {
     if ( $course_order[$i] !== "" ) {
@@ -11,14 +14,8 @@ function course_reorder_meta_box_markup($object) {
       $course_access_update['ID'] = $course_order[$i];
       $course_access_update['post_date'] = date( 'Y-m-d H:i:s', time()-($day*(365-$i)) );
     }
-
     wp_update_post( $course_access_update );
   }
-
-  add_action ('admin_enqueue_scripts', function() {
-    if(is_admin())
-    wp_enqueue_media();
-  });
 
   $membership_id = $object->ID;
 
