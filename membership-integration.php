@@ -3,7 +3,7 @@
 Plugin Name: Genoo WPMktgEngine eCommerce Tools
 Description: Essential plugin for member websites to integrate nicely between LifterLMS, WooCommerce, One Page Checkout and WPMktgEngine plugins
 Author: Genoo LLC
-Version: 2.16
+Version: 2.17
 Author URI: http://www.genoo.com/
 Text Domain: woocommerce-lifterlms-membership-extention
 */
@@ -66,7 +66,6 @@ function enroll_student_on_connected_site( $email, $username, $membership_id ){
 
   // Close cURL session handle
   curl_close($ch);
-  var_dump( $result );
   return $result;
 }
 
@@ -79,7 +78,7 @@ function wpme_llms_catch_checkout_to_add_memberships( $order_id ){
 
   foreach ( $items as $item ) {
 		$id = $item->get_product_id();
-		$memberships_bought = json_decode(get_post_meta( $id, 'connected_memberships', true ));
+		$memberships_bought = json_decode(str_replace("'","\"",get_post_meta( $id, 'connected_memberships', true )));
 
     if ( $memberships_bought->domain == get_site_url() ) {
 		$student = new LLMS_Student( $user_id );
@@ -170,7 +169,7 @@ function llms_courses_in_membership( $atts ) {
       $access_plan = get_post_meta(get_the_ID());
       $connected_course = $access_plan["_llms_product_id"][0];
 
-      if ( strpos(json_encode($access_plan["_llms_availability_restrictions"]), strval($membership_id)) !== false && get_post_status($connected_course) != false ) {
+      if ( strpos(json_encode($access_plan["_llms_availability_restrictions"]), strval($membership_id)) !== false ) {
         $course_ids[] = $connected_course;
       }
   	}
@@ -239,8 +238,7 @@ function connected_memberships_metabox() {
 
 function getConnectedSiteMemberships( $url ) {
   if ( !isset($url) || !$url ) {
-	echo "No Connected Memberships";
-	return;
+	return array();
   };
 
   // Prepare new cURL resource
@@ -271,8 +269,10 @@ function connected_memberships_display( $post ) {
   // Use nonce for verification
   wp_nonce_field( basename( __FILE__ ), 'connected_memberships_nonce' );
   $connected_url = get_option('satellite_site_settings')["satellite_site_url"];
+	
   $connected_memberships = getConnectedSiteMemberships($connected_url);
   $connected_memberships_options = "";
+	
   if ( count($connected_memberships) != 0 ) {
     $connected_memberships_options .= "<optgroup label=\"$connected_url\">";
     for ($i=0; $i < count($connected_memberships); $i++) {
@@ -295,7 +295,7 @@ function connected_memberships_display( $post ) {
   				);
   				$memberships = get_posts( $args );
   				foreach ( $memberships as $post ) :
-  					$is_selected = json_decode($dropdown_value)->ID == $post->ID;
+  					$is_selected = $dropdown_value->ID == $post->ID;
   					?><option value="{'domain': '<?= get_site_url() ?>', 'ID':<?= $post->ID ?>}" <?=$is_selected ? 'selected' : ''?>><?=$post->post_title?></option><?php
   		    endforeach;
   		    wp_reset_postdata();
