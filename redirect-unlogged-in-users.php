@@ -3,6 +3,10 @@
 include_once( ABSPATH . 'wp-admin/includes/plugin.php' );
 
 function redirect_non_logged_users_to_specific_page() {
+  // Dont redirect if lifterLMS is not installed
+  if ( !is_plugin_active('lifterlms/lifterlms.php') ) {
+    return;
+  }
   $isPageBuilderPage = get_post_type() == "wpme-landing-pages";
   $urlEncodedHomePage = urlencode(get_home_url());
   $loginUrl        = get_site_url(null, '/wp-login.php?redirect_to='.$urlEncodedHomePage.'&reauth=1');
