@@ -20,6 +20,7 @@ function lesson_link_meta_box_markup($object)
             </button>
 
             <script>
+            $ = jQuery;
             function updateLinksInUse() {
               const linksInUse = [...$("#links-in-use a")].map(
                 linkEl => {return {url: $(linkEl).attr("href"), filename: $(linkEl).attr("data-filename")}}
