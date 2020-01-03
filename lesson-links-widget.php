@@ -11,7 +11,7 @@ function lesson_link_meta_box_markup($object)
     ?>
         <div>
 
-            <span><i>Use the Lesson Links widget for the lesson sidebar to show these</i></span>
+            <span><i>Use the Lesson Links widget for the lesson sidebar to show these. You can also use the [show-lesson-links] shortcode to show inside the content.</i></span>
             <input type="hidden" name="links-in-use" value="<?php echo htmlspecialchars(get_post_meta($object->ID, "links-in-use", true)); ?>">
             <ul id="links-in-use"><li>Loading....</li></ul>
             <button class="add-link-button  button">
@@ -165,10 +165,11 @@ function lessonLinksWidget( $atts ) {
                   "[/course-material-download]");
     }
   }
+  $break = "<div style=\"clear: both;\"></div>";
   if ( $a["style"] == "list" ) {
-    $output .= "</ul></div>";
+    $output .= "</ul>$break</div>";
   } else {
-    $output .= "</div>";
+    $output .= "$break</div>";
   }
   return $output;
 }
