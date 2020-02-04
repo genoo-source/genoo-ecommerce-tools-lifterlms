@@ -4,27 +4,36 @@ include_once( ABSPATH . 'wp-admin/includes/plugin.php' );
 
 function redirect_non_logged_users_to_specific_page() {
   // Dont redirect if lifterLMS is not installed
+  
   if ( !is_plugin_active('lifterlms/lifterlms.php') ) {
     return;
   }
-  $isPageBuilderPage = get_post_type() == "wpme-landing-pages";
-  $urlEncodedHomePage = urlencode(get_home_url());
-  $loginUrl        = get_site_url(null, '/wp-login.php?redirect_to='.$urlEncodedHomePage.'&reauth=1');
-  $isForgotPasswordPage = strpos( $_SERVER['REQUEST_URI'], "lost-password" );
-  $isLoginUrl        = get_permalink() === $loginUrl;
-  $onPublicPage      = (
-    is_feed() ||
-    $isPageBuilderPage ||
-    $isLoginUrl ||
-    $isForgotPasswordPage
-  );
+  
+  $lesson_id = get_the_ID();
+  
+  $freelesion_status = get_post_meta($lesson_id)['_llms_free_lesson'][0]; //["_llms_parent_course"];	
+  echo $freelesion_status;
+  if($freelesion_status) {
+	  $isPageBuilderPage = get_post_type() == "wpme-landing-pages";
+	  $urlEncodedHomePage = urlencode(get_home_url());
+	  $loginUrl        = get_site_url(null, '/wp-login.php?re	direct_to='.$urlEncodedHomePage.'&reauth=1');
+	  $isForgotPasswordPage = strpos( $_SERVER['REQUEST_URI'], "lost-password" );
+	  $isLoginUrl        = get_permalink() === $loginUrl;
+	  $onPublicPage      = (
+		is_feed() ||
+		$isPageBuilderPage ||
+		$isLoginUrl ||
+		$isForgotPasswordPage
+	  );
 
-  if ( class_exists( 'WooCommerce' ) ) {
-  	$onPublicPage = $onPublicPage || is_checkout();
-  }
-  if ( is_user_logged_in() || $onPublicPage ) return;
+	  if ( class_exists( 'WooCommerce' ) ) {
+		$onPublicPage = $onPublicPage || is_checkout();
+	  }
+	  if ( is_user_logged_in() || $onPublicPage ) return;
 
-  wp_redirect( $loginUrl );
+	  wp_redirect( $loginUrl );
+  }  
+  
   exit;
 }
 add_action( 'template_redirect', 'redirect_non_logged_users_to_specific_page' );
