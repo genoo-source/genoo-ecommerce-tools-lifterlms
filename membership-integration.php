@@ -3,7 +3,7 @@
 Plugin Name: Genoo WPMktgEngine eCommerce Tools
 Description: Essential plugin for member websites to integrate nicely between LifterLMS, WooCommerce, One Page Checkout and WPMktgEngine plugins
 Author: Genoo LLC
-Version: 2.21
+Version: 2.20
 Author URI: http://www.genoo.com/
 Text Domain: woocommerce-lifterlms-membership-extention
 */
@@ -59,9 +59,10 @@ function wpme_llms_catch_checkout_to_add_memberships( $order_id ){
 		$student = new LLMS_Student( $user_id );
   		llms_enroll_student( $student, $memberships_bought->ID, get_site_url() );
     } else {
-      $email = $order->get_billing_email();
-      enroll_student_on_connected_site( $email, $email, $memberships_bought->ID );
+      $userdata = get_userdata( $user_id );
+      enroll_student_on_connected_site( $userdata->user_email, $userdata->user_login, $memberships_bought->ID );
     }
+
   }
 }
 
