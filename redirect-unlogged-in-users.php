@@ -31,7 +31,7 @@ function redirect_non_logged_users_to_specific_page() {
 	  if ( class_exists( 'WooCommerce' ) ) {
 		$onPublicPage = $onPublicPage || is_checkout();
 	  }
-	  if ( is_user_logged_in() || $onPublicPage || isset($_GET['invite']) ) return;
+	  if ( is_user_logged_in() || $onPublicPage ) return;
 
 	  wp_redirect( $loginUrl );
 
