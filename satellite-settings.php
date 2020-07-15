@@ -149,7 +149,7 @@ function create_new_user_from_api(WP_REST_Request $request) {
  * Version: 0.1
  * Plugin URI: https://github.com/WP-API/Basic-Auth
  */
-function json_basic_auth_handler( $user ) {
+function json_basic_auth_handler_genoo_wpme_etools( $user ) {
 	global $wp_json_basic_auth_error;
 	$wp_json_basic_auth_error = null;
 	// Don't authenticate twice
@@ -168,9 +168,9 @@ function json_basic_auth_handler( $user ) {
 	 * recursion and a stack overflow unless the current function is removed from the determine_current_user
 	 * filter during authentication.
 	 */
-	remove_filter( 'determine_current_user', 'json_basic_auth_handler', 20 );
+	remove_filter( 'determine_current_user', 'json_basic_auth_handler_genoo_wpme_etools', 20 );
 	$user = wp_authenticate( $username, $password );
-	add_filter( 'determine_current_user', 'json_basic_auth_handler', 20 );
+	add_filter( 'determine_current_user', 'json_basic_auth_handler_genoo_wpme_etools', 20 );
 	if ( is_wp_error( $user ) ) {
 		$wp_json_basic_auth_error = $user;
 		return null;
@@ -178,8 +178,8 @@ function json_basic_auth_handler( $user ) {
 	$wp_json_basic_auth_error = true;
 	return $user->ID;
 }
-add_filter( 'determine_current_user', 'json_basic_auth_handler', 20 );
-function json_basic_auth_error( $error ) {
+add_filter( 'determine_current_user', 'json_basic_auth_handler_genoo_wpme_etools', 20 );
+function json_basic_auth_error_genoo_wpme_etools( $error ) {
 	// Passthrough other errors
 	if ( ! empty( $error ) ) {
 		return $error;
@@ -187,4 +187,4 @@ function json_basic_auth_error( $error ) {
 	global $wp_json_basic_auth_error;
 	return $wp_json_basic_auth_error;
 }
-add_filter( 'rest_authentication_errors', 'json_basic_auth_error' );
+add_filter( 'rest_authentication_errors', 'json_basic_auth_error_genoo_wpme_etools' );

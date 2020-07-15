@@ -3,7 +3,7 @@
 Plugin Name: Genoo WPMktgEngine eCommerce Tools
 Description: Essential plugin for member websites to integrate nicely between LifterLMS, WooCommerce, One Page Checkout and WPMktgEngine plugins
 Author: Genoo LLC
-Version: 2.23
+Version: 2.30
 Author URI: http://www.genoo.com/
 Text Domain: woocommerce-lifterlms-membership-extention
 */
@@ -190,7 +190,7 @@ include("shortcodes.php");
 
 require 'plugin-update-checker-4.4/plugin-update-checker.php';
 $myUpdateChecker = Puc_v4_Factory::buildUpdateChecker(
-	'https://genoolabs.com/lms-updates/details.json',
+	'https://raw.githubusercontent.com/genoo-source/genoo-membership-plugin/master/details.json',
 	__FILE__,
 	'unique-plugin-or-theme-slug'
 );
