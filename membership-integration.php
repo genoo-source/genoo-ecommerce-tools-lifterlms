@@ -8,7 +8,7 @@ Author URI: http://www.genoo.com/
 Text Domain: woocommerce-lifterlms-membership-extention
 */
 
-function enroll_student_on_connected_site( $email, $username, $membership_id ){
+function enroll_student_on_connected_site_wpme_genoo_etools( $email, $username, $membership_id ){
   $url = get_option('satellite_site_settings')["satellite_site_url"];
   $token = get_option('satellite_site_settings["satellite_site_token"]');
 
@@ -60,7 +60,7 @@ function wpme_llms_catch_checkout_to_add_memberships( $order_id ){
   		llms_enroll_student( $student, $memberships_bought->ID, get_site_url() );
     } else {
       $userdata = get_userdata( $user_id );
-      enroll_student_on_connected_site( $userdata->user_email, $userdata->user_login, $memberships_bought->ID );
+      enroll_student_on_connected_site_wpme_genoo_etools( $userdata->user_email, $userdata->user_login, $memberships_bought->ID );
     }
 
   }
