@@ -120,7 +120,13 @@ function register_satellite_routes() {
     ));
 }
 
+/**
+ * This actually enrolls a user from the API request
+ * to the membership. Fixed 2020-08-26 to create a user
+ * only if needed.
+ */
 function create_new_user_from_api(WP_REST_Request $request) {
+  
   $params      = $request->get_params();
   $username    = $params["username"];
   $password    = $params["password"];
@@ -128,11 +134,18 @@ function create_new_user_from_api(WP_REST_Request $request) {
   $website     = $params["website"];
   $memberships = $params["memberships"]; // comma separated
 
-  // Create the new user
-  $user_id = wp_create_user( $username, $password, $email );
+  // Try getting a user first
+  $userByEmail = get_user_by('email', $email);
+  if($userByEmail !== false){
+    // User exists
+    $user_id = $userByEmail->ID;
+  } else {
+    // Create the new user
+    $user_id = wp_create_user($username, $password, $email);
+  }
 
   // Enroll the new user into the membership
-  $student = new LLMS_Student( $user_id );
+  $student = new LLMS_Student($user_id);
   $memberships_bought = explode(',', $memberships);
   foreach ( $memberships_bought as $membership_id ) {
     llms_enroll_student( $student, $membership_id, $website );

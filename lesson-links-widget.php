@@ -10,7 +10,6 @@ function lesson_link_meta_box_markup($object)
     });
     ?>
         <div>
-
             <span><i>Use the Lesson Links widget for the lesson sidebar to show these. You can also use the [show-lesson-links] shortcode to show inside the content.</i></span>
             <input type="hidden" name="links-in-use" value="<?php echo htmlspecialchars(get_post_meta($object->ID, "links-in-use", true)); ?>">
             <ul id="links-in-use"><li>Loading....</li></ul>
@@ -18,7 +17,6 @@ function lesson_link_meta_box_markup($object)
               <span class="handle dashicons-before dashicons-plus" style="position: relative; top: 6px;"></span>
               Add Link
             </button>
-
             <script>
             $ = jQuery;
             function updateLinksInUse() {

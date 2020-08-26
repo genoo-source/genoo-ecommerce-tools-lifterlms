@@ -3,7 +3,7 @@
 Plugin Name: Genoo WPMktgEngine eCommerce Tools
 Description: Essential plugin for member websites to integrate nicely between LifterLMS, WooCommerce, One Page Checkout and WPMktgEngine plugins
 Author: Genoo LLC
-Version: 2.31
+Version: 2.40
 Author URI: http://www.genoo.com/
 Text Domain: woocommerce-lifterlms-membership-extention
 */
@@ -27,6 +27,10 @@ function enroll_student_on_connected_site_wpme_genoo_etools( $email, $username, 
   $payload = json_encode($data);
   // echo "$url/wp-json/wp/v2/satellite/new_user/ -- $payload";
 
+  //
+  // This calls this file and function:
+  // satellite-settings.php => create_new_user_from_api
+  // 
   $ch = curl_init("$url/wp-json/wp/v2/satellite/new_user/");
   curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
   curl_setopt($ch, CURLINFO_HEADER_OUT, true);
@@ -36,6 +40,7 @@ function enroll_student_on_connected_site_wpme_genoo_etools( $email, $username, 
     "Authorization:Basic $token"
   );
   curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+  
   // Submit the POST request
   $result = json_decode(curl_exec($ch));
 
@@ -56,7 +61,7 @@ function wpme_llms_catch_checkout_to_add_memberships( $order_id ){
 		$memberships_bought = json_decode(str_replace("'","\"",get_post_meta( $id, 'connected_memberships', true )));
 
     if ( $memberships_bought->domain == get_site_url() ) {
-		$student = new LLMS_Student( $user_id );
+		  $student = new LLMS_Student( $user_id );
   		llms_enroll_student( $student, $memberships_bought->ID, get_site_url() );
     } else {
       $userdata = get_userdata( $user_id );
