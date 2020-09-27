@@ -3,18 +3,18 @@
 Plugin Name: Genoo WPMktgEngine eCommerce Tools
 Description: Essential plugin for member websites to integrate nicely between LifterLMS, WooCommerce, One Page Checkout and WPMktgEngine plugins
 Author: Genoo LLC
-Version: 2.40
+Version: 2.45
 Author URI: http://www.genoo.com/
 Text Domain: woocommerce-lifterlms-membership-extention
 */
 
-function enroll_student_on_connected_site_wpme_genoo_etools( $email, $username, $membership_id ){
+function enroll_student_on_connected_site_wpme_genoo_etools( $email, $username, $membership_id, $userdata){
   $url = get_option('satellite_site_settings')["satellite_site_url"];
   $token = get_option('satellite_site_settings["satellite_site_token"]');
 
   // Generate a random password for the new user
   $possible_characters = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
-  $password = substr(str_shuffle(str_repeat($x=$possible_characters, ceil(14/strlen($x)) )),1,14);
+  $password = substr(str_shuffle(str_repeat($x=$possible_characters, ceil(14/strlen($x)))),1,14);
 
   // Prepare new cURL resource
   $data = array(
@@ -22,6 +22,8 @@ function enroll_student_on_connected_site_wpme_genoo_etools( $email, $username, 
     'password' => $password,
     'email' => $email,
     'website' => get_site_url(),
+    'first_name' => @$userdata->first_name,
+    'last_name' => @$userdata->last_name,
     'memberships' => "$membership_id"
   );
   $payload = json_encode($data);
@@ -52,22 +54,28 @@ function enroll_student_on_connected_site_wpme_genoo_etools( $email, $username, 
 add_action( 'woocommerce_thankyou', 'wpme_llms_catch_checkout_to_add_memberships');
 add_action( 'woocommerce_payment_complete', 'wpme_llms_catch_checkout_to_add_memberships');
 function wpme_llms_catch_checkout_to_add_memberships( $order_id ){
+  
   $order = new WC_Order( $order_id );
   $items = $order->get_items();
   $user_id = get_current_user_id();
-
+  
   foreach ( $items as $item ) {
 		$id = $item->get_product_id();
 		$memberships_bought = json_decode(str_replace("'","\"",get_post_meta( $id, 'connected_memberships', true )));
-
-    if ( $memberships_bought->domain == get_site_url() ) {
-		  $student = new LLMS_Student( $user_id );
-  		llms_enroll_student( $student, $memberships_bought->ID, get_site_url() );
-    } else {
-      $userdata = get_userdata( $user_id );
-      enroll_student_on_connected_site_wpme_genoo_etools( $userdata->user_email, $userdata->user_login, $memberships_bought->ID );
+    if(is_object($memberships_bought) && isset($memberships_bought->domain)){
+      if ( $memberships_bought->domain == get_site_url() ) {
+        $student = new LLMS_Student( $user_id );
+        llms_enroll_student( $student, $memberships_bought->ID, get_site_url() );
+      } else {
+        $userdata = get_userdata($user_id);
+        enroll_student_on_connected_site_wpme_genoo_etools(
+          $userdata->user_email,
+          $userdata->user_login,
+          $memberships_bought->ID,
+          $userdata
+        );
+      }
     }
-
   }
 }
 
