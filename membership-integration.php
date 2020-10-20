@@ -84,6 +84,7 @@ function connected_memberships_metabox() {
 }
 // action to add meta boxes
 add_action( 'add_meta_boxes', 'connected_memberships_metabox' );
+// $ch = curl_init("$url/wp-json/wp/v2/llms_membership?per_page=100&order=desc");
 
 function getConnectedSiteMemberships( $url ) {
   if ( !isset($url) || !$url ) {
@@ -91,16 +92,18 @@ function getConnectedSiteMemberships( $url ) {
   };
 
   // Prepare new cURL resource
-  $ch = curl_init("$url/wp-json/wp/v2/llms_membership?per_page=100&order=desc");
+  $ch = curl_init("$url/wp-json/llms/v1/memberships?per_page=100&order=desc");
+  curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
   curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
   curl_setopt($ch, CURLINFO_HEADER_OUT, true);
-  curl_setopt($ch, CURLOPT_GET, true);
+  curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
   $token = get_option('satellite_site_settings["satellite_site_token"]');
   $headers = array("Authorization:Basic $token");
   curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
 
   // Submit the POST request
-  $result = json_decode(curl_exec($ch));
+  $res = curl_exec($ch);
+  $result = json_decode($res);
 
   // Close cURL session handle
   curl_close($ch);
