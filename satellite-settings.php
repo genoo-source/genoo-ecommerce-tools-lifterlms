@@ -144,6 +144,16 @@ function create_new_user_from_api(WP_REST_Request $request) {
     $user_id = wp_create_user($username, $password, $email);
   }
 
+  // Update first and last name
+  if(is_array($params)){
+    if(array_key_exists('first_name', $params) && !empty($params['first_name'])){
+      update_user_meta($user_id, 'first_name', $params['first_name']);
+    }
+    if(array_key_exists('last_name', $params) && !empty($params['last_name'])){
+      update_user_meta($user_id, 'last_name', $params['last_name']);
+    }
+  }
+
   // Enroll the new user into the membership
   $student = new LLMS_Student($user_id);
   $memberships_bought = explode(',', $memberships);
