@@ -94,13 +94,14 @@ function connected_memberships_metabox() {
 add_action( 'add_meta_boxes', 'connected_memberships_metabox' );
 // $ch = curl_init("$url/wp-json/wp/v2/llms_membership?per_page=100&order=desc");
 
-function getConnectedSiteMemberships( $url ) {
+function getConnectedSiteMemberships( $url, $legacy = true ) {
   if ( !isset($url) || !$url ) {
 	return array();
   };
 
   // Prepare new cURL resource
-  $ch = curl_init("$url/wp-json/llms/v1/memberships?per_page=100&order=desc");
+  $path = $legacy ? "wp-json/wp/v2/llms_membership" : "wp-json/llms/v1/memberships";
+  $ch = curl_init("$url/$path?per_page=100&order=desc");
   curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
   curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
   curl_setopt($ch, CURLINFO_HEADER_OUT, true);
