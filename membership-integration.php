@@ -45,13 +45,19 @@ function enroll_student_on_connected_site_wpme_genoo_etools( $email, $username, 
   
   // Submit the POST request
   $result = json_decode(curl_exec($ch));
-
+  $arr = array('id'=>$result);
+ $value =  preg_replace( '/[^\d]/', '', $arr['id']);
+  
   // Close cURL session handle
   curl_close($ch);
-  return $result;
+  $user_meta = get_user_meta($value,'store_users',true);
+ if(!$user_meta){
+ require_once ('includes/emailtemplate.php');
+}
+ return $result;
 }
 
-add_action( 'woocommerce_thankyou', 'wpme_llms_catch_checkout_to_add_memberships');
+//add_action( 'woocommerce_thankyou', 'wpme_llms_catch_checkout_to_add_memberships');
 add_action( 'woocommerce_payment_complete', 'wpme_llms_catch_checkout_to_add_memberships');
 function wpme_llms_catch_checkout_to_add_memberships( $order_id ){
   
@@ -116,7 +122,7 @@ function getConnectedSiteMemberships( $url, $legacy = true ) {
 
   // Close cURL session handle
   curl_close($ch);
-
+  
   return $result;
 }
 
@@ -134,7 +140,7 @@ function connected_memberships_display( $post ) {
   $connected_memberships = getConnectedSiteMemberships($connected_url);
   $connected_memberships_options = "";
 
-  if ( count($connected_memberships) != 0 ) {
+  if (!empty($connected_memberships) && count($connected_memberships) != 0 ) {
     $connected_memberships_options .= "<optgroup label=\"$connected_url\">";
     for ($i=0; $i < count($connected_memberships); $i++) {
       $id = $connected_memberships[$i]->id;
@@ -214,13 +220,11 @@ $myUpdateChecker = Puc_v4_Factory::buildUpdateChecker(
 
 add_action( 'init', 'woocommerce_clear_cart_url' );
 function woocommerce_clear_cart_url() {
-
-
-  global $woocommerce;
+ global $woocommerce;
   try {
   	$isWooFunnelsPage = strpos($_SERVER['REQUEST_URI'],'\/checkouts\/') != false;
     $doing_ajax = defined('DOING_AJAX') && DOING_AJAX;
-    if ( !$doing_ajax && !$isWooFunnelsPage && is_admin() && $_GET['persistant-cart'] != "true" && isset($woocommerce->cart) ) {
+    if (!$doing_ajax && !$isWooFunnelsPage && is_admin() && $_GET['persistant-cart'] != "true" && isset($woocommerce->cart) ) {
       $woocommerce->cart->empty_cart();
     }
    } catch( \EXCEPTION $e ) {
