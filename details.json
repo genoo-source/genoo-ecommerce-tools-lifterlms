@@ -1,6 +1,6 @@
 {
   "name" : "WPMktgEngine Membership Site Integrations",
-    "version" : "2.48",
+    "version" : "2.49",
       "download_url" : "https://github.com/genoo-source/genoo-membership-plugin/archive/master.zip",
         "sections" : {
     "description" : "Essential plugin for member websites to integrate nicely between LifterLMS, WooCommerce, One Page Checkout and WPMktgEngine plugins"

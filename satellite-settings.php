@@ -8,10 +8,10 @@ function satellite_site_add_admin_menu(  ) {
 }
 
 function satellite_site_settings_init(  ) {
-    register_setting( 'stpPlugin', 'satellite_site_settings' );
+    register_setting('stpPlugin', 'satellite_site_settings' );
     add_settings_section(
         'satellite_site_stpPlugin_section',
-        "",
+        "stp_satellite_site_settings_section",
         'satellite_site_settings_section_callback',
         'stpPlugin'
     );
@@ -62,6 +62,11 @@ function satellite_site_password_render(  ) {
     <?php
 }
 
+function satellite_site_settings_section_callback()
+{
+    return true;
+}
+
 function satellite_site_options_page(  ) {
     $notice = "";
 
@@ -81,7 +86,7 @@ function satellite_site_options_page(  ) {
       if ( isset($username) && isset($password) && isset($url) ) {
 
         if ( $token ) {
-          update_option( 'satellite_site_settings["satellite_site_token"]', $token);
+          update_option('satellite_site_settings["satellite_site_token"]', $token);
           $notice = "<p style=\"color: green;\">Your site is connected!</p>";
         } else {
           $notice = "<p style=\"color: red;\">There was an error when logging in</p>";
