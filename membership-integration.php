@@ -71,7 +71,7 @@ function wpme_llms_catch_checkout_to_add_memberships( $order_id ){
     if(is_object($memberships_bought) && isset($memberships_bought->domain)){
       if ( $memberships_bought->domain == get_site_url() ) {
         $student = new LLMS_Student( $user_id );
-        llms_enroll_student( $student, $memberships_bought->ID, get_site_url() );
+        llms_enroll_student( $student,$memberships_bought->ID, get_site_url() );
       } else {
         $userdata = get_userdata($user_id);
         enroll_student_on_connected_site_wpme_genoo_etools(
