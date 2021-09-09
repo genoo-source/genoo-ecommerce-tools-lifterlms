@@ -3,7 +3,7 @@
 Plugin Name: Genoo WPMktgEngine eCommerce Tools
 Description: Essential plugin for member websites to integrate nicely between LifterLMS, WooCommerce, One Page Checkout and WPMktgEngine plugins
 Author: Genoo LLC
-Version: 2.49
+Version: 2.50
 Author URI: http://www.genoo.com/
 Text Domain: woocommerce-lifterlms-membership-extention
 */
@@ -224,7 +224,7 @@ function woocommerce_clear_cart_url() {
   try {
   	$isWooFunnelsPage = strpos($_SERVER['REQUEST_URI'],'\/checkouts\/') != false;
     $doing_ajax = defined('DOING_AJAX') && DOING_AJAX;
-    if (!$doing_ajax && !$isWooFunnelsPage && is_admin() && $_GET['persistant-cart'] != "true" && isset($woocommerce->cart) ) {
+    if (!$doing_ajax && !$isWooFunnelsPage && is_admin() && isset($_GET['persistant-cart']) != "true" && isset($woocommerce->cart) ) {
       $woocommerce->cart->empty_cart();
     }
    } catch( \EXCEPTION $e ) {
