@@ -1,6 +1,6 @@
 <?php
 /*
-Plugin Name: Genoo WPMktgEngine eCommerce Tools
+Plugin Name: WooCommerce-LifterLMS-Additions
 Description: Essential plugin for member websites to integrate nicely between LifterLMS, WooCommerce, One Page Checkout and WPMktgEngine plugins
 Author: Genoo LLC
 Version: 2.50
