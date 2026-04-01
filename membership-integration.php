@@ -136,7 +136,9 @@ function connected_memberships_metabox(): void {
 		'connected_memberships',
 		'Membership to assign users to when they buy this product',
 		'connected_memberships_display',
-		'product'
+		'product',
+		'side',   // appears in the right-hand sidebar, visible without scrolling
+		'default'
 	);
 }
 
