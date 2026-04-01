@@ -8,14 +8,16 @@ function lesson_forum_meta_box_markup($object)
 
     // List the memberships
     $args = array(
-      'numberposts' => -1,
-      'post_type'   => 'llms_membership'
+      'posts_per_page' => -1,
+      'post_type'      => 'llms_membership',
+      'no_found_rows'  => true,
     );
     $memberships = get_posts( $args );
 
     $args = array(
-      'numberposts' => -1,
-      'post_type'   => 'topic'
+      'posts_per_page' => -1,
+      'post_type'      => 'topic',
+      'no_found_rows'  => true,
     );
     $topics = get_posts( $args );
 
@@ -55,30 +57,34 @@ function lesson_forum_meta_box_markup($object)
     }
     echo '
     <script type="text/javascript">
-      var forumForComments = [];
-      try {
-        forumForComments = JSON.parse(document.querySelector("[name=\"forum-for-comments\"]").value);
-      } catch (e) {
-        console.error("Invalid forum JSON");
-      }
+    (function ($) {
+      $(document).ready(function () {
+        var forumForComments = [];
+        try {
+          forumForComments = JSON.parse(document.querySelector("[name=\'forum-for-comments\']").value);
+        } catch (e) {
+          console.error("Invalid forum JSON");
+        }
 
-      jQuery("[data-forum-membership-id]").ready(function() {
         for (var i = 0; i < forumForComments.length; i++) {
-          $(`[data-forum-membership-id="${forumForComments[i].id}"]`).val(
+          $("[data-forum-membership-id=\'" + forumForComments[i].id + "\']").val(
             forumForComments[i].forum
           );
         }
-      });
 
-      $("[data-forum-membership-id]").on("change", function(){
-        forumForComments = [...document.querySelectorAll(\'[data-forum-membership-id]\')].map(
-          that => ({
-            id: that.getAttribute("data-forum-membership-id"),
-            forum: that.value
-          })
-        );
-        $("[name=\'forum-for-comments\']").val( JSON.stringify(forumForComments) );
+        $(document).on("change", "[data-forum-membership-id]", function () {
+          forumForComments = [...document.querySelectorAll("[data-forum-membership-id]")].map(
+            function (el) {
+              return {
+                id:    el.getAttribute("data-forum-membership-id"),
+                forum: el.value
+              };
+            }
+          );
+          $("[name=\'forum-for-comments\']").val(JSON.stringify(forumForComments));
+        });
       });
+    }(jQuery));
     </script>
     ';
 }

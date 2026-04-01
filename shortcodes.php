@@ -65,10 +65,11 @@ function llms_courses_in_membership( $atts ) {
   $out = '';
 
   $args = array(
-	  'post_type' => 'llms_access_plan',
-	  'posts_per_page'   => -1,
-	  'order' => 'ASC',
-	  'order_by' => 'date'
+	  'post_type'      => 'llms_access_plan',
+	  'posts_per_page' => -1,
+	  'order'          => 'ASC',
+	  'orderby'        => 'date',
+	  'no_found_rows'  => true,
   );
   $query = new WP_Query( $args );
   $course_ids = array();
@@ -128,30 +129,25 @@ function llms_courses_in_membership( $atts ) {
 }
 add_shortcode( 'llms_courses_in_membership', 'llms_courses_in_membership' );
 
-function facebook_comments($atts){
-    extract(shortcode_atts(
-            array(
-                'shareurl' => '',
-            ), $atts)
-    );
-    $url = get_site_url(); // \WordPress\Request::getUrl();
-    $r = '<div id="fb-root"></div>
-    <script type="text/javascript">(function(d, s, id) {
-      var js, fjs = d.getElementsByTagName(s)[0];
-      if (d.getElementById(id)) return;
-      js = d.createElement(s); js.id = id;
-      js.src = "//connect.facebook.net/en_GB/sdk.js#xfbml=1&version=v2.5";
-      fjs.parentNode.insertBefore(js, fjs);
-        }(document, \'script\', \'facebook-jssdk\'));</script>';
-    $r .= '<br />';
-    $r .= '<div class="fb-like" data-href="'. $url .'" data-layout="standard" data-action="like" data-show-faces="false" data-share="false"></div>';
-    $r .= '<div class="fb-share-button" data-href="'. $url .'" data-layout="button_count"></div>';
-    $r .= '<div class="clear"></div>';
-    $r .= '<br />';
-    if(isset($shareurl) && !empty($shareurl)){
-        $url = $shareurl;
-    }
-    $r .= '<div class="fb-comments" data-href="'. $url .'" data-numposts="5" data-order-by="reverse_time"></div>';
-    return $r;
+function facebook_comments( $atts ): string {
+	$a        = shortcode_atts( array( 'shareurl' => '' ), $atts );
+	$page_url = get_site_url();
+	$share_url = ! empty( $a['shareurl'] ) ? esc_url( $a['shareurl'] ) : esc_url( $page_url );
+
+	$r  = '<div id="fb-root"></div>';
+	$r .= '<script type="text/javascript">(function(d, s, id) {';
+	$r .= 'var js, fjs = d.getElementsByTagName(s)[0];';
+	$r .= 'if (d.getElementById(id)) return;';
+	$r .= 'js = d.createElement(s); js.id = id;';
+	$r .= 'js.src = "https://connect.facebook.net/en_GB/sdk.js#xfbml=1&version=v21.0";';
+	$r .= 'fjs.parentNode.insertBefore(js, fjs);';
+	$r .= "}(document, 'script', 'facebook-jssdk'));</script>";
+	$r .= '<br />';
+	$r .= '<div class="fb-like" data-href="' . esc_url( $page_url ) . '" data-layout="standard" data-action="like" data-show-faces="false" data-share="false"></div>';
+	$r .= '<div class="fb-share-button" data-href="' . esc_url( $page_url ) . '" data-layout="button_count"></div>';
+	$r .= '<div class="clear"></div><br />';
+	$r .= '<div class="fb-comments" data-href="' . $share_url . '" data-numposts="5" data-order-by="reverse_time"></div>';
+
+	return $r;
 }
-add_shortcode('facebook_comments', 'facebook_comments');
+add_shortcode( 'facebook_comments', 'facebook_comments' );

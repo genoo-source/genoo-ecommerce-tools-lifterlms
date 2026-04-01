@@ -20,12 +20,13 @@ function course_reorder_meta_box_markup($object) {
   $membership_id = $object->ID;
 
   $args = array(
-	  'post_type' => 'llms_access_plan',
-	  'posts_per_page'   => -1,
-	  'order' => 'ASC',
-	  'order_by' => 'date'
+	  'post_type'      => 'llms_access_plan',
+	  'posts_per_page' => -1,
+	  'order'          => 'ASC',
+	  'orderby'        => 'date',
+	  'no_found_rows'  => true,
   );
-  $course_ids = array();
+  $course_ids      = array();
   $access_plan_ids = array();
   $access_plan_posts = get_posts( $args );
   for ($i=0; $i < count($access_plan_posts); $i++) {
