@@ -129,22 +129,8 @@ function wpme_llms_catch_checkout_to_add_memberships( int $order_id ): void {
 	}
 }
 
-// Meta box: connect a LifterLMS membership to a WooCommerce product.
-add_action( 'add_meta_boxes', 'connected_memberships_metabox' );
-function connected_memberships_metabox(): void {
-	add_meta_box(
-		'connected_memberships',
-		'Membership to assign users to when they buy this product',
-		'connected_memberships_display',
-		'product',
-		'side',   // appears in the right-hand sidebar, visible without scrolling
-		'default'
-	);
-}
-
 /**
- * Fetch memberships from the remote (satellite) site via the LifterLMS REST API v1.
- * Uses wp_remote_get() with SSL verification enabled.
+ * Fetch published memberships from the remote (satellite) site via the LifterLMS REST API v1.
  */
 function getConnectedSiteMemberships( string $url ): array {
 	if ( ! $url ) {
@@ -172,14 +158,30 @@ function getConnectedSiteMemberships( string $url ): array {
 }
 
 /**
- * Render the membership dropdown inside the product meta box.
+ * Render the membership selector inside the WooCommerce General product tab.
+ *
+ * Uses woocommerce_product_options_general_product_data so the field appears
+ * inside the Product Data panel with a proper label, in the expected location.
+ *
+ * The HTML field uses the prefixed name/id "wpme_connected_membership" rather
+ * than the generic "connected_memberships" to prevent LifterLMS admin JavaScript
+ * from matching it with its own AJAX-powered select2 initialiser (which ignores
+ * statically-rendered <option> elements and replaces the dropdown with an AJAX
+ * search that returns "No results found").
+ *
+ * class="no-select2" additionally blocks WooCommerce's own select2 enhancement.
+ *
+ * The post meta key (connected_memberships) is unchanged for backward compatibility
+ * with existing product data and the enrollment code below.
  */
-function connected_memberships_display( WP_Post $post ): void {
+add_action( 'woocommerce_product_options_general_product_data', 'wpme_render_connected_membership_field' );
+function wpme_render_connected_membership_field(): void {
+	global $post;
+
 	$raw            = get_post_meta( $post->ID, 'connected_memberships', true );
 	$dropdown_value = json_decode( str_replace( "'", '"', $raw ) );
 
-	wp_nonce_field( basename( __FILE__ ), 'connected_memberships_nonce' );
-
+	// Remote (satellite) site memberships.
 	$connected_url         = wpme_get_satellite_url();
 	$connected_memberships = getConnectedSiteMemberships( $connected_url );
 	$remote_options        = '';
@@ -196,9 +198,11 @@ function connected_memberships_display( WP_Post $post ): void {
 		$remote_options .= '</optgroup>';
 	}
 
+	// Local published memberships only.
 	$local_memberships = get_posts( array(
 		'posts_per_page' => -1,
 		'post_type'      => 'llms_membership',
+		'post_status'    => 'publish',
 		'no_found_rows'  => true,
 	) );
 
@@ -208,49 +212,62 @@ function connected_memberships_display( WP_Post $post ): void {
 		$value         = wp_json_encode( array( 'domain' => get_site_url(), 'ID' => (string) $m->ID ) );
 		$local_options .= '<option value="' . esc_attr( $value ) . '" ' . $selected . '>' . esc_html( $m->post_title ) . '</option>';
 	}
+
+	wp_nonce_field( 'wpme_save_connected_membership', 'wpme_connected_membership_nonce' );
 	?>
-	<select name="connected_memberships" id="connected_memberships">
-		<option value="">--- None ---</option>
-		<?php echo $remote_options; // Already escaped above. ?>
-		<?php if ( $local_options ) : ?>
-			<optgroup label="<?php echo esc_attr( get_site_url() ); ?>">
-				<?php echo $local_options; // Already escaped above. ?>
-			</optgroup>
-		<?php endif; ?>
-	</select>
+	<p class="form-field wpme_connected_membership_field">
+		<label for="wpme_connected_membership">
+			<?php esc_html_e( 'Membership to assign on purchase', 'woocommerce-lifterlms-membership-extention' ); ?>
+		</label>
+		<select name="wpme_connected_membership"
+		        id="wpme_connected_membership"
+		        class="no-select2"
+		        style="width:100%;">
+			<option value="">&#8212; None &#8212;</option>
+			<?php echo $remote_options; // Already escaped above. ?>
+			<?php if ( $local_options ) : ?>
+				<optgroup label="<?php echo esc_attr( get_site_url() ); ?>">
+					<?php echo $local_options; // Already escaped above. ?>
+				</optgroup>
+			<?php endif; ?>
+		</select>
+		<span class="description">
+			<?php esc_html_e( 'Enroll the customer in this LifterLMS membership when they purchase this product.', 'woocommerce-lifterlms-membership-extention' ); ?>
+		</span>
+	</p>
 	<?php
 }
 
-// Save the connected membership dropdown value.
-add_action( 'save_post', 'connected_memberships_save' );
-function connected_memberships_save( int $post_id ): void {
+/**
+ * Save the membership field when WooCommerce saves the product.
+ * Stores to the same meta key (connected_memberships) used by the enrollment logic.
+ */
+add_action( 'woocommerce_process_product_meta', 'wpme_save_connected_membership_field' );
+function wpme_save_connected_membership_field( int $post_id ): void {
 
-	if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
+	if ( ! isset( $_POST['wpme_connected_membership_nonce'] ) ) {
 		return;
 	}
 
-	if ( ! isset( $_POST['connected_memberships_nonce'] ) ) {
+	if ( ! wp_verify_nonce(
+		sanitize_text_field( wp_unslash( $_POST['wpme_connected_membership_nonce'] ) ),
+		'wpme_save_connected_membership'
+	) ) {
 		return;
 	}
 
-	if ( ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['connected_memberships_nonce'] ) ), basename( __FILE__ ) ) ) {
+	if ( ! current_user_can( 'edit_post', $post_id ) ) {
 		return;
 	}
 
-	$post_type = isset( $_POST['post_type'] ) ? sanitize_key( $_POST['post_type'] ) : '';
-
-	if ( 'page' === $post_type ) {
-		if ( ! current_user_can( 'edit_page', $post_id ) ) {
-			return;
-		}
+	if ( ! empty( $_POST['wpme_connected_membership'] ) ) {
+		update_post_meta(
+			$post_id,
+			'connected_memberships',
+			sanitize_text_field( wp_unslash( $_POST['wpme_connected_membership'] ) )
+		);
 	} else {
-		if ( ! current_user_can( 'edit_post', $post_id ) ) {
-			return;
-		}
-	}
-
-	if ( isset( $_POST['connected_memberships'] ) ) {
-		update_post_meta( $post_id, 'connected_memberships', sanitize_text_field( wp_unslash( $_POST['connected_memberships'] ) ) );
+		delete_post_meta( $post_id, 'connected_memberships' );
 	}
 }
 
@@ -280,9 +297,9 @@ function wpme_woocommerce_clear_cart_on_admin(): void {
 		return;
 	}
 
-	$request_uri       = isset( $_SERVER['REQUEST_URI'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) ) : '';
-	$is_woo_funnels    = strpos( $request_uri, '/checkouts/' ) !== false;
-	$persistent_cart   = isset( $_GET['persistant-cart'] ) && 'true' === $_GET['persistant-cart'];
+	$request_uri     = isset( $_SERVER['REQUEST_URI'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) ) : '';
+	$is_woo_funnels  = strpos( $request_uri, '/checkouts/' ) !== false;
+	$persistent_cart = isset( $_GET['persistant-cart'] ) && 'true' === $_GET['persistant-cart'];
 
 	if ( ! $is_woo_funnels && ! $persistent_cart && function_exists( 'WC' ) && WC()->cart ) {
 		WC()->cart->empty_cart();
