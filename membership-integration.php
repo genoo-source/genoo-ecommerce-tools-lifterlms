@@ -1,243 +1,315 @@
 <?php
 /*
-Plugin Name: WooCommerce-LifterLMS-Additions
-Description: Essential plugin for member websites to integrate nicely between LifterLMS, WooCommerce, One Page Checkout and WPMktgEngine plugins
+Plugin Name: Genoo WPME WooCommerce LifterLMS Additions
+Description: Essential plugin for member websites to integrate LifterLMS, WooCommerce, One Page Checkout and WPMktgEngine plugins.
 Author: Genoo LLC
-Version: 2.50
-Author URI: http://www.genoo.com/
+Version: 3.0.0
+Author URI: https://www.genoo.com/
 Text Domain: woocommerce-lifterlms-membership-extention
+Requires at least: 6.4
+Requires PHP: 8.1
+WC requires at least: 7.0
+WC tested up to: 10.6
 */
 
-function enroll_student_on_connected_site_wpme_genoo_etools( $email, $username, $membership_id, $userdata){
-  $url = get_option('satellite_site_settings')["satellite_site_url"];
-  $token = get_option('satellite_site_settings["satellite_site_token"]');
+// Declare compatibility with WooCommerce HPOS (High-Performance Order Storage).
+add_action( 'before_woocommerce_init', function () {
+	if ( class_exists( \Automattic\WooCommerce\Utilities\FeaturesUtil::class ) ) {
+		\Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility( 'custom_order_tables', __FILE__, true );
+	}
+} );
 
-  // Generate a random password for the new user
-  $possible_characters = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
-  $password = substr(str_shuffle(str_repeat($x=$possible_characters, ceil(14/strlen($x)))),1,14);
-
-  // Prepare new cURL resource
-  $data = array(
-    'username' => $username,
-    'password' => $password,
-    'email' => $email,
-    'website' => get_site_url(),
-    'first_name' => @$userdata->first_name,
-    'last_name' => @$userdata->last_name,
-    'memberships' => "$membership_id"
-  );
-  $payload = json_encode($data);
-  // echo "$url/wp-json/wp/v2/satellite/new_user/ -- $payload";
-
-  //
-  // This calls this file and function:
-  // satellite-settings.php => create_new_user_from_api
-  // 
-  $ch = curl_init("$url/wp-json/wp/v2/satellite/new_user/");
-  curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-  curl_setopt($ch, CURLINFO_HEADER_OUT, true);
-  curl_setopt($ch, CURLOPT_POST, true);
-  curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
-  $headers = array(
-    "Authorization:Basic $token"
-  );
-  curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-  
-  // Submit the POST request
-  $result = json_decode(curl_exec($ch));
-  $arr = array('id'=>$result);
- $value =  preg_replace( '/[^\d]/', '', $arr['id']);
-  
-  // Close cURL session handle
-  curl_close($ch);
-  $user_meta = get_user_meta($value,'store_users',true);
- if(!$user_meta){
- require_once ('includes/emailtemplate.php');
-}
- return $result;
+/**
+ * Retrieve the satellite site token from the settings array.
+ */
+function wpme_get_satellite_token(): string {
+	$settings = get_option( 'satellite_site_settings', array() );
+	return $settings['satellite_site_token'] ?? '';
 }
 
-//add_action( 'woocommerce_thankyou', 'wpme_llms_catch_checkout_to_add_memberships');
-add_action( 'woocommerce_payment_complete', 'wpme_llms_catch_checkout_to_add_memberships');
-function wpme_llms_catch_checkout_to_add_memberships( $order_id ){
-  
-  $order = new WC_Order( $order_id );
-  $items = $order->get_items();
-  $user_id = get_current_user_id();
-  
-  foreach ( $items as $item ) {
-		$id = $item->get_product_id();
-		$memberships_bought = json_decode(str_replace("'","\"",get_post_meta( $id, 'connected_memberships', true )));
-    if(is_object($memberships_bought) && isset($memberships_bought->domain)){
-      if ( $memberships_bought->domain == get_site_url() ) {
-        $student = new LLMS_Student( $user_id );
-        llms_enroll_student( $student,$memberships_bought->ID, get_site_url() );
-      } else {
-        $userdata = get_userdata($user_id);
-        enroll_student_on_connected_site_wpme_genoo_etools(
-          $userdata->user_email,
-          $userdata->user_login,
-          $memberships_bought->ID,
-          $userdata
-        );
-      }
-    }
-  }
+/**
+ * Retrieve the satellite site URL from the settings array.
+ */
+function wpme_get_satellite_url(): string {
+	$settings = get_option( 'satellite_site_settings', array() );
+	return $settings['satellite_site_url'] ?? '';
 }
 
+/**
+ * Enroll a user on the remote (satellite) site via the REST API.
+ * Uses wp_remote_post() — respects WordPress SSL, proxy, and timeout settings.
+ */
+function enroll_student_on_connected_site_wpme_genoo_etools( string $email, string $username, $membership_id, $userdata ): void {
+	$url   = wpme_get_satellite_url();
+	$token = wpme_get_satellite_token();
 
+	if ( ! $url || ! $token ) {
+		return;
+	}
 
-// function that creates the new metabox that will show on post
-function connected_memberships_metabox() {
-    add_meta_box(
-        'connected_memberships',  // unique id
-        'Membership to assign users to when they buy this product',  // metabox title
-        'connected_memberships_display',  // callback to show the dropdown
-        'product'   // post type
-    );
-}
-// action to add meta boxes
-add_action( 'add_meta_boxes', 'connected_memberships_metabox' );
-// $ch = curl_init("$url/wp-json/wp/v2/llms_membership?per_page=100&order=desc");
+	// Generate a random password for the new user on the satellite site.
+	$possible_chars = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+	$password       = substr( str_shuffle( str_repeat( $possible_chars, (int) ceil( 14 / strlen( $possible_chars ) ) ) ), 0, 14 );
 
-function getConnectedSiteMemberships( $url, $legacy = true ) {
-  if ( !isset($url) || !$url ) {
-	return array();
-  };
+	$body = array(
+		'username'    => $username,
+		'password'    => $password,
+		'email'       => $email,
+		'website'     => get_site_url(),
+		'first_name'  => $userdata->first_name ?? '',
+		'last_name'   => $userdata->last_name ?? '',
+		'memberships' => (string) $membership_id,
+	);
 
-  // Prepare new cURL resource
-  $path = $legacy ? "wp-json/wp/v2/llms_membership" : "wp-json/llms/v1/memberships";
-  $ch = curl_init("$url/$path?per_page=100&order=desc");
-  curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-  curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-  curl_setopt($ch, CURLINFO_HEADER_OUT, true);
-  curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
-  $token = get_option('satellite_site_settings["satellite_site_token"]');
-  $headers = array("Authorization:Basic $token");
-  curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+	// Calls satellite-settings.php => create_new_user_from_api on the remote site.
+	$response = wp_remote_post(
+		esc_url_raw( trailingslashit( $url ) . 'wp-json/genoo/v1/satellite/new_user/' ),
+		array(
+			'headers' => array( 'Authorization' => 'Basic ' . $token ),
+			'body'    => $body,
+			'timeout' => 15,
+		)
+	);
 
-  // Submit the POST request
-  $res = curl_exec($ch);
-  $result = json_decode($res);
+	if ( is_wp_error( $response ) ) {
+		return;
+	}
 
-  // Close cURL session handle
-  curl_close($ch);
-  
-  return $result;
-}
+	$result    = json_decode( wp_remote_retrieve_body( $response ) );
+	$remote_id = (int) preg_replace( '/[^\d]/', '', $result );
 
-// llms_woo dropdown display
-function connected_memberships_display( $post ) {
-  // get current value
-  $dropdown_value = get_post_meta( get_the_ID(), 'connected_memberships', true );
-  $dropdown_value = str_replace("'", "\"", $dropdown_value);
-  $dropdown_value = json_decode( $dropdown_value );
-
-  // Use nonce for verification
-  wp_nonce_field( basename( __FILE__ ), 'connected_memberships_nonce' );
-  $connected_url = get_option('satellite_site_settings')["satellite_site_url"];
-
-  $connected_memberships = getConnectedSiteMemberships($connected_url);
-  $connected_memberships_options = "";
-
-  if (!empty($connected_memberships) && count($connected_memberships) != 0 ) {
-    $connected_memberships_options .= "<optgroup label=\"$connected_url\">";
-    for ($i=0; $i < count($connected_memberships); $i++) {
-      $id = $connected_memberships[$i]->id;
-      $title = $connected_memberships[$i]->title->rendered;
-      $is_selected = $dropdown_value->ID == $id  ? 'selected' : '';
-      $connected_memberships_options .= "<option value=\"{'domain': '$connected_url','ID': '$id'}\" $is_selected>$title</option>";
-    }
-    $connected_memberships_options .= "</optgroup>";
-  }
-  ?>
-    <select name="connected_memberships" id="connected_memberships">
-			<option value="">--- None ---</option>
-      <?= $connected_memberships_options ?>
-      <optgroup label="<?= get_site_url(); ?>">
-  			<?php
-  				$args = array(
-  					'numberposts' => 999,
-  					'post_type'   => 'llms_membership'
-  				);
-  				$memberships = get_posts( $args );
-  				foreach ( $memberships as $post ) :
-  					$is_selected = $dropdown_value->ID == $post->ID;
-  					?><option value="{'domain': '<?= get_site_url() ?>', 'ID':<?= $post->ID ?>}" <?=$is_selected ? 'selected' : ''?>><?=$post->post_title?></option><?php
-  		    endforeach;
-  		    wp_reset_postdata();
-  			?>
-      </optgroup>
-    </select>
-  <?php
+	if ( $remote_id > 0 ) {
+		$user_meta = get_user_meta( $remote_id, 'store_users', true );
+		if ( ! $user_meta ) {
+			require_once __DIR__ . '/includes/emailtemplate.php';
+		}
+	}
 }
 
-// dropdown saving
-function connected_memberships_save( $post_id ) {
+/**
+ * On payment completion, enroll the purchasing customer in the connected LifterLMS membership.
+ */
+add_action( 'woocommerce_payment_complete', 'wpme_llms_catch_checkout_to_add_memberships' );
+function wpme_llms_catch_checkout_to_add_memberships( int $order_id ): void {
 
-    // if doing autosave don't do nothing
-  if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE )
-      return;
+	$order = wc_get_order( $order_id );
+	if ( ! $order ) {
+		return;
+	}
 
-  // verify nonce
-  if ( !wp_verify_nonce( $_POST['connected_memberships_nonce'], basename( __FILE__ ) ) )
-      return;
+	// Use the order's customer ID — payment_complete can fire outside a browser session
+	// (e.g. from a webhook or cron), so get_current_user_id() would return 0.
+	$user_id = $order->get_customer_id();
+	if ( ! $user_id ) {
+		return;
+	}
 
+	foreach ( $order->get_items() as $item ) {
+		$product_id         = $item->get_product_id();
+		$raw_meta           = get_post_meta( $product_id, 'connected_memberships', true );
+		$memberships_bought = json_decode( str_replace( "'", '"', $raw_meta ) );
 
-  // Check permissions
-  if ( 'page' == $_POST['post_type'] )
-  {
-    if ( !current_user_can( 'edit_page', $post_id ) )
-        return;
-  }
-  else
-  {
-    if ( !current_user_can( 'edit_post', $post_id ) )
-        return;
-  }
+		if ( ! is_object( $memberships_bought ) || ! isset( $memberships_bought->domain ) ) {
+			continue;
+		}
 
-  // save the new value of the dropdown
-  $new_value = $_POST['connected_memberships'];
-  update_post_meta( $post_id, 'connected_memberships', $new_value );
+		if ( $memberships_bought->domain === get_site_url() ) {
+			llms_enroll_student( $user_id, (int) $memberships_bought->ID, 'woocommerce_payment_complete' );
+		} else {
+			$userdata = get_userdata( $user_id );
+			if ( $userdata ) {
+				enroll_student_on_connected_site_wpme_genoo_etools(
+					$userdata->user_email,
+					$userdata->user_login,
+					$memberships_bought->ID,
+					$userdata
+				);
+			}
+		}
+	}
 }
-// action on saving post
-add_action( 'save_post', 'connected_memberships_save' );
 
-include("change-global-user-enrollment-date.php");
-include("redirect-unlogged-in-users.php");
-include("lesson-links-widget.php");
-include("lesson-forum-metabox.php");
-include("satellite-settings.php");
-include("course-reordering.php");
-include("shortcodes.php");
+/**
+ * Fetch published memberships from the remote (satellite) site via the LifterLMS REST API v1.
+ */
+function getConnectedSiteMemberships( string $url ): array {
+	if ( ! $url ) {
+		return array();
+	}
 
-require 'plugin-update-checker-4.4/plugin-update-checker.php';
-$myUpdateChecker = Puc_v4_Factory::buildUpdateChecker(
+	$token = wpme_get_satellite_token();
+
+	$response = wp_remote_get(
+		add_query_arg(
+			array( 'per_page' => 100, 'order' => 'desc' ),
+			esc_url_raw( trailingslashit( $url ) . 'wp-json/llms/v1/memberships' )
+		),
+		array(
+			'headers' => array( 'Authorization' => 'Basic ' . $token ),
+			'timeout' => 15,
+		)
+	);
+
+	if ( is_wp_error( $response ) ) {
+		return array();
+	}
+
+	return json_decode( wp_remote_retrieve_body( $response ) ) ?: array();
+}
+
+/**
+ * Render the membership selector inside the WooCommerce General product tab.
+ *
+ * Uses woocommerce_product_options_general_product_data so the field appears
+ * inside the Product Data panel with a proper label, in the expected location.
+ *
+ * The HTML field uses the prefixed name/id "wpme_connected_membership" rather
+ * than the generic "connected_memberships" to prevent LifterLMS admin JavaScript
+ * from matching it with its own AJAX-powered select2 initialiser (which ignores
+ * statically-rendered <option> elements and replaces the dropdown with an AJAX
+ * search that returns "No results found").
+ *
+ * class="no-select2" additionally blocks WooCommerce's own select2 enhancement.
+ *
+ * The post meta key (connected_memberships) is unchanged for backward compatibility
+ * with existing product data and the enrollment code below.
+ */
+add_action( 'woocommerce_product_options_general_product_data', 'wpme_render_connected_membership_field' );
+function wpme_render_connected_membership_field(): void {
+	global $post;
+
+	$raw            = get_post_meta( $post->ID, 'connected_memberships', true );
+	$dropdown_value = json_decode( str_replace( "'", '"', $raw ) );
+
+	// Remote (satellite) site memberships.
+	$connected_url         = wpme_get_satellite_url();
+	$connected_memberships = getConnectedSiteMemberships( $connected_url );
+	$remote_options        = '';
+
+	if ( ! empty( $connected_memberships ) ) {
+		$remote_options .= '<optgroup label="' . esc_attr( $connected_url ) . '">';
+		foreach ( $connected_memberships as $membership ) {
+			$id       = $membership->id ?? 0;
+			$title    = $membership->title->rendered ?? '';
+			$selected = ( is_object( $dropdown_value ) && (int) $dropdown_value->ID === (int) $id ) ? 'selected' : '';
+			$value    = wp_json_encode( array( 'domain' => $connected_url, 'ID' => (string) $id ) );
+			$remote_options .= '<option value="' . esc_attr( $value ) . '" ' . $selected . '>' . esc_html( $title ) . '</option>';
+		}
+		$remote_options .= '</optgroup>';
+	}
+
+	// Local published memberships only.
+	$local_memberships = get_posts( array(
+		'posts_per_page' => -1,
+		'post_type'      => 'llms_membership',
+		'post_status'    => 'publish',
+		'no_found_rows'  => true,
+	) );
+
+	$local_options = '';
+	foreach ( $local_memberships as $m ) {
+		$selected      = ( is_object( $dropdown_value ) && (int) $dropdown_value->ID === $m->ID ) ? 'selected' : '';
+		$value         = wp_json_encode( array( 'domain' => get_site_url(), 'ID' => (string) $m->ID ) );
+		$local_options .= '<option value="' . esc_attr( $value ) . '" ' . $selected . '>' . esc_html( $m->post_title ) . '</option>';
+	}
+
+	wp_nonce_field( 'wpme_save_connected_membership', 'wpme_connected_membership_nonce' );
+	?>
+	<p class="form-field wpme_connected_membership_field">
+		<label for="wpme_connected_membership">
+			<?php esc_html_e( 'Membership to assign on purchase', 'woocommerce-lifterlms-membership-extention' ); ?>
+		</label>
+		<select name="wpme_connected_membership"
+		        id="wpme_connected_membership"
+		        class="no-select2"
+		        style="width:100%;">
+			<option value="">&#8212; None &#8212;</option>
+			<?php echo $remote_options; // Already escaped above. ?>
+			<?php if ( $local_options ) : ?>
+				<optgroup label="<?php echo esc_attr( get_site_url() ); ?>">
+					<?php echo $local_options; // Already escaped above. ?>
+				</optgroup>
+			<?php endif; ?>
+		</select>
+		<span class="description">
+			<?php esc_html_e( 'Enroll the customer in this LifterLMS membership when they purchase this product.', 'woocommerce-lifterlms-membership-extention' ); ?>
+		</span>
+	</p>
+	<?php
+}
+
+/**
+ * Save the membership field when WooCommerce saves the product.
+ * Stores to the same meta key (connected_memberships) used by the enrollment logic.
+ */
+add_action( 'woocommerce_process_product_meta', 'wpme_save_connected_membership_field' );
+function wpme_save_connected_membership_field( int $post_id ): void {
+
+	if ( ! isset( $_POST['wpme_connected_membership_nonce'] ) ) {
+		return;
+	}
+
+	if ( ! wp_verify_nonce(
+		sanitize_text_field( wp_unslash( $_POST['wpme_connected_membership_nonce'] ) ),
+		'wpme_save_connected_membership'
+	) ) {
+		return;
+	}
+
+	if ( ! current_user_can( 'edit_post', $post_id ) ) {
+		return;
+	}
+
+	if ( ! empty( $_POST['wpme_connected_membership'] ) ) {
+		update_post_meta(
+			$post_id,
+			'connected_memberships',
+			sanitize_text_field( wp_unslash( $_POST['wpme_connected_membership'] ) )
+		);
+	} else {
+		delete_post_meta( $post_id, 'connected_memberships' );
+	}
+}
+
+include __DIR__ . '/change-global-user-enrollment-date.php';
+include __DIR__ . '/redirect-unlogged-in-users.php';
+include __DIR__ . '/lesson-links-widget.php';
+include __DIR__ . '/lesson-forum-metabox.php';
+include __DIR__ . '/satellite-settings.php';
+include __DIR__ . '/course-reordering.php';
+include __DIR__ . '/shortcodes.php';
+include __DIR__ . '/subscription-integration.php';
+
+require __DIR__ . '/plugin-update-checker-5.5/plugin-update-checker.php';
+$myUpdateChecker = YahnisElsts\PluginUpdateChecker\v5\PucFactory::buildUpdateChecker(
 	'https://raw.githubusercontent.com/genoo-source/genoo-membership-plugin/master/details.json',
 	__FILE__,
-	'unique-plugin-or-theme-slug'
+	'genoo-woocommerce-lifterlms-additions'
 );
 
-add_action( 'init', 'woocommerce_clear_cart_url' );
-function woocommerce_clear_cart_url() {
- global $woocommerce;
-  try {
-  	$isWooFunnelsPage = strpos($_SERVER['REQUEST_URI'],'\/checkouts\/') != false;
-    $doing_ajax = defined('DOING_AJAX') && DOING_AJAX;
-    if (!$doing_ajax && !$isWooFunnelsPage && is_admin() && isset($_GET['persistant-cart']) != "true" && isset($woocommerce->cart) ) {
-      $woocommerce->cart->empty_cart();
-    }
-   } catch( \EXCEPTION $e ) {
+// Clear the WooCommerce cart when visiting the admin outside a WooFunnels checkout context.
+add_action( 'init', 'wpme_woocommerce_clear_cart_on_admin' );
+function wpme_woocommerce_clear_cart_on_admin(): void {
+	if ( defined( 'DOING_AJAX' ) && DOING_AJAX ) {
+		return;
+	}
+	if ( ! is_admin() ) {
+		return;
+	}
 
-   }
+	$request_uri     = isset( $_SERVER['REQUEST_URI'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) ) : '';
+	$is_woo_funnels  = strpos( $request_uri, '/checkouts/' ) !== false;
+	$persistent_cart = isset( $_GET['persistant-cart'] ) && 'true' === $_GET['persistant-cart'];
+
+	if ( ! $is_woo_funnels && ! $persistent_cart && function_exists( 'WC' ) && WC()->cart ) {
+		WC()->cart->empty_cart();
+	}
 }
 
-function change_template_if_membership( $template ){
-  if (get_post_type() == "llms_membership" ) {
-    $template = plugin_dir_path(__FILE__) . 'membership-page.php';
-  }
-  return $template;
+add_filter( 'template_include', 'change_template_if_membership' );
+function change_template_if_membership( string $template ): string {
+	if ( get_post_type() === 'llms_membership' ) {
+		$template = plugin_dir_path( __FILE__ ) . 'membership-page.php';
+	}
+	return $template;
 }
-add_filter('template_include', 'change_template_if_membership');
-
-?>
